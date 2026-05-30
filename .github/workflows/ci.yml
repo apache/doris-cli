@@ -1,0 +1,61 @@
+name: ci
+
+# PR compile + unit-test gate: builds the crate and runs the (DB-free) cargo
+# unit tests on every pull request to main and on pushes to main.
+#
+# The DB-backed e2e suite (tests/e2e, driven by start-testing.sh) needs a live
+# Doris cluster, so it is intentionally NOT run here — only the self-contained
+# cargo unit tests under src/parser are exercised.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push to the same PR/branch cancels the in-flight run for it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Native build on each runner, so the runner's OS+arch IS the target —
+        # no cross-compilation needed. Mirrors the release-npm platform set.
+        include:
+          - { name: darwin-arm64, runner: macos-14 }
+          - { name: linux-x64, runner: ubuntu-latest }
+          - { name: linux-arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      # checkout must run first: the build uses a local composite action
+      # (./.github/actions/setup-rust-toolchain) that lives in this repo. The
+      # apache org action allowlist blocks third-party actions, so the Rust
+      # toolchain setup is reimplemented locally and reused here.
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust-toolchain
+      # Cache the cargo registry/git + build dir. actions/cache is GitHub-owned
+      # so it satisfies the allowlist (Swatinem/rust-cache would not). Keyed on
+      # the lockfile; the vendored OpenSSL C build in target/ is the main thing
+      # worth keeping warm across runs.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
+      # Debug build (not the release LTO profile) — fast and enough to gate
+      # compilation. --all-targets also compiles the test code; --locked fails
+      # the build if Cargo.lock is out of sync with Cargo.toml.
+      - run: cargo build --all-targets --locked
+      - run: cargo test --locked
