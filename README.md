@@ -42,6 +42,25 @@ doriscli tablet db.orders --detail
 
 ---
 
+## Install
+
+The recommended way to install doris-cli is from **npm** — it ships prebuilt
+binaries, so there is no Rust toolchain and no compile step:
+
+```bash
+npm install -g @apache-doris/doriscli
+doriscli --version
+```
+
+On install, npm pulls **only** the binary that matches your OS + CPU (via
+`optionalDependencies` + `os`/`cpu` constraints). Supported platforms: macOS
+(arm64), Linux (x64, arm64). The published package is scoped
+(`@apache-doris/doriscli`), but the installed command is just `doriscli`.
+
+For any other platform — or to hack on doris-cli itself — build from source below.
+
+---
+
 ## Build
 
 Requires a recent stable Rust toolchain (verified on rustc 1.87; the crate uses the
