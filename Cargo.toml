@@ -6,7 +6,7 @@ resolver = "3"
 
 [package]
 name = "doriscli"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Doris CLI — SQL, profiles, and tablet analysis against a Doris kernel"
 
