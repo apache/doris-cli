@@ -14,8 +14,8 @@ This package ships a prebuilt native binary. On install, npm automatically pulls
 **only** the platform package that matches your OS + CPU (via `optionalDependencies`
 + `os`/`cpu` constraints), so there is no compile step and no Rust toolchain needed.
 
-Supported platforms: macOS (arm64, x64), Linux (x64, arm64), Windows (x64). On any
-other platform, [build from source](https://github.com/morningman/doris-cli#build).
+Supported platforms: macOS (arm64), Linux (x64, arm64). On any other platform,
+[build from source](https://github.com/morningman/doris-cli#build).
 
 ## Quick start
 

@@ -17,7 +17,7 @@ inputs:
 runs:
   using: composite
   steps:
-    # `shell: bash` works on every runner, including Windows (Git Bash).
+    # `shell: bash` is available on every GitHub-hosted runner.
     - shell: bash
       env:
         TOOLCHAIN: ${{ inputs.toolchain }}

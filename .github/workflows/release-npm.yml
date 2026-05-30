@@ -27,27 +27,21 @@ jobs:
       matrix:
         include:
           - { runner: macos-14, key: darwin-arm64, target: aarch64-apple-darwin }
-          - { runner: macos-13, key: darwin-x64, target: x86_64-apple-darwin }
           - { runner: ubuntu-latest, key: linux-x64, target: x86_64-unknown-linux-gnu }
           # If arm64 Linux runners aren't available to this repo, swap to the
           # `cross` tool or houseabsolute/actions-rust-cross for this entry.
           - { runner: ubuntu-24.04-arm, key: linux-arm64, target: aarch64-unknown-linux-gnu }
-          - { runner: windows-latest, key: win32-x64, target: x86_64-pc-windows-msvc }
     runs-on: ${{ matrix.runner }}
     steps:
-      # checkout must run first: the steps below use local composite actions
-      # (referenced by in-repo relative path) that live in this repository.
+      # checkout must run first: the step below uses a local composite action
+      # (referenced by in-repo relative path) that lives in this repository.
       # The apache org action allowlist blocks third-party actions such as
-      # dtolnay/rust-toolchain and ilammy/setup-nasm, so they are reimplemented
-      # under .github/actions and used via ./.github/actions/<name>.
+      # dtolnay/rust-toolchain, so it is reimplemented under .github/actions
+      # and used via ./.github/actions/<name>.
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-rust-toolchain
         with:
           targets: ${{ matrix.target }}
-      # The crate builds OpenSSL from source (openssl `vendored`); on Windows that
-      # needs NASM + Perl (Perl ships on the windows runner).
-      - if: runner.os == 'Windows'
-        uses: ./.github/actions/setup-nasm
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -56,7 +50,6 @@ jobs:
         shell: bash
         run: |
           BIN="target/${{ matrix.target }}/release/doriscli"
-          [ "${{ runner.os }}" = "Windows" ] && BIN="${BIN}.exe"
           node npm/build-packages.cjs platform ${{ matrix.key }} "$BIN"
       - uses: actions/upload-artifact@v4
         with:
