@@ -1,0 +1,108 @@
+name: release-npm
+
+# Cross-compiles doriscli for every supported platform, assembles the npm
+# packages, and publishes them. Triggered by pushing a v* tag (whose number must
+# match the version in Cargo.toml) or run manually.
+#
+# Prerequisite: add an npm automation token as the repo secret `NPM_TOKEN`
+# (npmjs.com → Access Tokens → Generate → "Automation").
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Validate build + packaging without publishing (npm publish --dry-run)"
+        type: boolean
+        default: true
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-14, key: darwin-arm64, target: aarch64-apple-darwin }
+          - { runner: macos-13, key: darwin-x64, target: x86_64-apple-darwin }
+          - { runner: ubuntu-latest, key: linux-x64, target: x86_64-unknown-linux-gnu }
+          # If arm64 Linux runners aren't available to this repo, swap to the
+          # `cross` tool or houseabsolute/actions-rust-cross for this entry.
+          - { runner: ubuntu-24.04-arm, key: linux-arm64, target: aarch64-unknown-linux-gnu }
+          - { runner: windows-latest, key: win32-x64, target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      # The crate builds OpenSSL from source (openssl `vendored`); on Windows that
+      # needs NASM + Perl (Perl ships on the windows runner).
+      - if: runner.os == 'Windows'
+        uses: ilammy/setup-nasm@v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: cargo build --release --target ${{ matrix.target }}
+      - name: Assemble platform package
+        shell: bash
+        run: |
+          BIN="target/${{ matrix.target }}/release/doriscli"
+          [ "${{ runner.os }}" = "Windows" ] && BIN="${BIN}.exe"
+          node npm/build-packages.cjs platform ${{ matrix.key }} "$BIN"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.key }}
+          path: npm/dist/doriscli-${{ matrix.key }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      # Manual runs default to a dry run (validate without publishing); a v* tag
+      # push does a real publish. --dry-run needs no token, so you can validate
+      # the whole pipeline before NPM_TOKEN is even set.
+      DRYRUN: ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          path: npm/dist
+          pattern: pkg-*
+      - name: Arrange dist dirs
+        shell: bash
+        run: |
+          set -e
+          cd npm/dist
+          # download-artifact nests each artifact under its name (pkg-<key>); the
+          # generator + main package expect doriscli-<key>.
+          for d in pkg-*/; do
+            dest="doriscli-${d#pkg-}"
+            rm -rf "${dest%/}"
+            mv "$d" "${dest%/}"
+          done
+          ls -la
+      - name: Assemble main package
+        run: node npm/build-packages.cjs main
+      - name: Publish platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -e
+          echo "DRYRUN='${DRYRUN}'  (empty = real publish)"
+          for d in npm/dist/doriscli-*/; do
+            npm publish "$d" --access public $DRYRUN
+          done
+      - name: Publish main package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Published last so the optionalDependencies already exist on the registry.
+        run: npm publish npm/dist/doriscli --access public $DRYRUN

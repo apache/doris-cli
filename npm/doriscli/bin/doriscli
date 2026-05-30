@@ -1,0 +1,46 @@
+#!/usr/bin/env node
+"use strict";
+// Thin launcher: locate the prebuilt binary that ships in the matching optional
+// platform sub-package (e.g. doriscli-darwin-arm64) and exec it, forwarding the
+// args, stdio and exit code. No build step, no postinstall — works even with
+// `npm install --ignore-scripts` and in read-only install dirs.
+const { spawnSync } = require("child_process");
+const path = require("path");
+const { PLATFORMS } = require("../platforms.js");
+
+function fail(msg) {
+  process.stderr.write(`doriscli: ${msg}\n`);
+  process.exit(1);
+}
+
+const key = `${process.platform}-${process.arch}`;
+const entry = PLATFORMS[key];
+if (!entry) {
+  fail(
+    `unsupported platform "${key}". Supported: ${Object.keys(PLATFORMS).join(", ")}.\n` +
+      `Build from source instead: https://github.com/morningman/doris-cli#build`
+  );
+}
+
+const pkg = `doriscli-${key}`;
+let binPath;
+try {
+  // Resolve via the sub-package's package.json so we don't depend on the
+  // node_modules hoisting layout, then join the known binary path.
+  const pkgJson = require.resolve(`${pkg}/package.json`);
+  binPath = path.join(path.dirname(pkgJson), "bin", entry.binName);
+} catch (_) {
+  fail(
+    `the platform package "${pkg}" is not installed.\n` +
+      `This usually means npm skipped optional dependencies. Reinstall with:\n` +
+      `  npm install -g doriscli        (do not pass --no-optional / --omit=optional)`
+  );
+}
+
+const result = spawnSync(binPath, process.argv.slice(2), { stdio: "inherit" });
+if (result.error) {
+  if (result.error.code === "ENOENT") fail(`binary not found at ${binPath}`);
+  throw result.error;
+}
+// spawnSync sets status=null when the child was killed by a signal.
+process.exit(result.status === null ? 1 : result.status);

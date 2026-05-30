@@ -6,3 +6,6 @@
 # e2e test harness: local connection config + run logs
 /tests/e2e/cluster.env
 /tests/e2e/results/
+
+# npm packaging: generated, publishable packages (built by npm/build-packages.cjs)
+/npm/dist/

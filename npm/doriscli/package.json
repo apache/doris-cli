@@ -1,0 +1,14 @@
+{
+  "//": "version + optionalDependencies are injected by npm/build-packages.cjs from Cargo.toml at release time. Publish ONLY from npm/dist/, never this directory.",
+  "name": "doriscli",
+  "version": "0.0.0-dev",
+  "description": "Doris CLI — SQL, profiles, and tablet analysis against an Apache Doris kernel",
+  "keywords": ["doris", "apache-doris", "cli", "sql", "mysql", "olap", "tablet", "profile"],
+  "homepage": "https://github.com/morningman/doris-cli#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/morningman/doris-cli.git" },
+  "license": "Apache-2.0",
+  "bin": { "doriscli": "bin/doriscli" },
+  "files": ["bin/", "platforms.js", "README.md", "LICENSE.txt"],
+  "engines": { "node": ">=16" },
+  "optionalDependencies": {}
+}
