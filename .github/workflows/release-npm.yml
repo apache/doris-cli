@@ -87,6 +87,12 @@ jobs:
             rm -rf "${dest%/}"
             mv "$d" "${dest%/}"
           done
+          # actions/upload-artifact strips the Unix executable bit, so each
+          # prebuilt binary arrives as 0644 and npm would publish a
+          # non-executable file (the launcher spawns it directly, and platform
+          # packages declare no `bin` entry for npm to chmod on install).
+          # Restore it before the packages are packed.
+          chmod 0755 doriscli-*/bin/*
           ls -la
       - name: Assemble main package
         run: node npm/build-packages.cjs main
