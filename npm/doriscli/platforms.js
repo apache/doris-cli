@@ -4,7 +4,7 @@
 //
 // The key is `${process.platform}-${process.arch}`, which also doubles as:
 //   - the npm "<os>-<cpu>" pair (e.g. darwin-arm64), and
-//   - the platform sub-package name suffix: `doriscli-<key>`.
+//   - the platform sub-package name: `@apache-doris/doriscli-<key>`.
 const PLATFORMS = {
   "darwin-arm64": { rustTarget: "aarch64-apple-darwin", binName: "doriscli" },
   "linux-x64": { rustTarget: "x86_64-unknown-linux-gnu", binName: "doriscli" },

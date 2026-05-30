@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 "use strict";
 // Thin launcher: locate the prebuilt binary that ships in the matching optional
-// platform sub-package (e.g. doriscli-darwin-arm64) and exec it, forwarding the
+// platform sub-package (e.g. @apache-doris/doriscli-darwin-arm64) and exec it,
 // args, stdio and exit code. No build step, no postinstall — works even with
 // `npm install --ignore-scripts` and in read-only install dirs.
 const { spawnSync } = require("child_process");
@@ -18,11 +18,11 @@ const entry = PLATFORMS[key];
 if (!entry) {
   fail(
     `unsupported platform "${key}". Supported: ${Object.keys(PLATFORMS).join(", ")}.\n` +
-      `Build from source instead: https://github.com/morningman/doris-cli#build`
+      `Build from source instead: https://github.com/apache/doris-cli#build`
   );
 }
 
-const pkg = `doriscli-${key}`;
+const pkg = `@apache-doris/doriscli-${key}`;
 let binPath;
 try {
   // Resolve via the sub-package's package.json so we don't depend on the
@@ -33,7 +33,7 @@ try {
   fail(
     `the platform package "${pkg}" is not installed.\n` +
       `This usually means npm skipped optional dependencies. Reinstall with:\n` +
-      `  npm install -g doriscli        (do not pass --no-optional / --omit=optional)`
+      `  npm install -g @apache-doris/doriscli   (do not pass --no-optional / --omit=optional)`
   );
 }
 

@@ -50,11 +50,11 @@ function buildPlatform(key, binPath) {
   fs.chmodSync(destBin, 0o755);
 
   const pkg = {
-    name: `doriscli-${key}`,
+    name: `@apache-doris/doriscli-${key}`,
     version,
     description: `Prebuilt doriscli binary for ${key}.`,
     license: "Apache-2.0",
-    repository: { type: "git", url: "git+https://github.com/morningman/doris-cli.git" },
+    repository: { type: "git", url: "git+https://github.com/apache/doris-cli.git" },
     os: [os],
     cpu: [cpu],
     files: ["bin/"],
@@ -82,7 +82,7 @@ function buildMain() {
   pkg.version = version;
   pkg.optionalDependencies = {};
   for (const key of Object.keys(PLATFORMS)) {
-    pkg.optionalDependencies[`doriscli-${key}`] = version;
+    pkg.optionalDependencies[`@apache-doris/doriscli-${key}`] = version;
   }
   fs.writeFileSync(path.join(outDir, "package.json"), JSON.stringify(pkg, null, 2) + "\n");
   console.log(`built ${path.relative(ROOT, outDir)}  (${version}, ${Object.keys(PLATFORMS).length} optional deps)`);
