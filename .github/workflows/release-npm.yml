@@ -35,14 +35,19 @@ jobs:
           - { runner: windows-latest, key: win32-x64, target: x86_64-pc-windows-msvc }
     runs-on: ${{ matrix.runner }}
     steps:
+      # checkout must run first: the steps below use local composite actions
+      # (referenced by in-repo relative path) that live in this repository.
+      # The apache org action allowlist blocks third-party actions such as
+      # dtolnay/rust-toolchain and ilammy/setup-nasm, so they are reimplemented
+      # under .github/actions and used via ./.github/actions/<name>.
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-rust-toolchain
         with:
           targets: ${{ matrix.target }}
       # The crate builds OpenSSL from source (openssl `vendored`); on Windows that
       # needs NASM + Perl (Perl ships on the windows runner).
       - if: runner.os == 'Windows'
-        uses: ilammy/setup-nasm@v1
+        uses: ./.github/actions/setup-nasm
       - uses: actions/setup-node@v4
         with:
           node-version: 20

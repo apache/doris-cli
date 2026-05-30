@@ -1,0 +1,32 @@
+name: Setup Rust toolchain
+description: >-
+  Install a Rust toolchain (and optional cross-compilation targets) using the
+  rustup that ships on GitHub-hosted runners. This is a local replacement for
+  dtolnay/rust-toolchain, which the apache org GitHub Actions allowlist blocks.
+
+inputs:
+  toolchain:
+    description: Toolchain to install and set as the default (e.g. stable, 1.79.0).
+    required: false
+    default: stable
+  targets:
+    description: Space-separated list of additional compilation targets to add.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # `shell: bash` works on every runner, including Windows (Git Bash).
+    - shell: bash
+      env:
+        TOOLCHAIN: ${{ inputs.toolchain }}
+        TARGETS: ${{ inputs.targets }}
+      run: |
+        set -eux
+        rustup toolchain install "${TOOLCHAIN}" --profile minimal --no-self-update
+        rustup default "${TOOLCHAIN}"
+        if [ -n "${TARGETS}" ]; then
+          # Unquoted on purpose: allow a space-separated list of targets.
+          rustup target add ${TARGETS}
+        fi
