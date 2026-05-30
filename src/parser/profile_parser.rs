@@ -425,6 +425,40 @@ mod real_profile_tests {
             "flattened operators must be sorted by exec_time_avg_ms descending"
         );
 
+        // Regression (PlanInfo-swallows-counters): an operator that carries a
+        // "- PlanInfo" block must still surface its counters. The bug was that the
+        // PlanInfo block never terminated, so every following counter line (which
+        // shares the "- key: value" shape of a plan-info item) was parsed as
+        // plan-info and the operator lost RowsProduced -> output_rows -> the
+        // downstream total_scan_rows degraded to null.
+        let with_plan_info: Vec<_> = profile
+            .fragments
+            .iter()
+            .flat_map(|f| &f.pipelines)
+            .flat_map(|p| &p.operators)
+            .filter(|op| !op.plan_info.is_empty())
+            .collect();
+        assert!(
+            !with_plan_info.is_empty(),
+            "fixture must contain operators with a PlanInfo block to exercise this path"
+        );
+        for op in &with_plan_info {
+            // Every Doris operator emits at least ExecTime, so a PlanInfo operator
+            // with an empty counter map means the block absorbed the counters.
+            assert!(
+                !op.all_counters.is_empty(),
+                "operator {:?} carries a PlanInfo block but has no counters — the \
+                 PlanInfo parser swallowed them",
+                op.info.full_name
+            );
+        }
+        assert!(
+            with_plan_info
+                .iter()
+                .any(|op| op.metrics.rows_produced.is_some()),
+            "at least one PlanInfo-bearing operator must surface RowsProduced (output_rows)"
+        );
+
         // Regression: DetailProfile / Appendix must be section boundaries, not bleed
         // into MergedProfile and fabricate empty fragments — every parsed fragment has
         // real pipelines.

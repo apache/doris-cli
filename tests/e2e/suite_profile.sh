@@ -101,6 +101,14 @@ suite_profile() {
       # query_stats: scanned rows ≈ what we loaded; fragment/operator counts real.
       expect_parsed "profile: get -> query_stats.total_scan_rows ≈ loaded rows" \
         '(.query_stats.total_scan_rows >= ('"${ROWS:-2000}"' * 0.9 | floor)) and (.query_stats.fragment_count>=1) and (.query_stats.operator_count>0)'
+      # Regression (PlanInfo block swallowed per-operator counters): output_rows must
+      # populate for operators that carry a "- PlanInfo" block — this is NOT scan
+      # specific. The bug nulled RowsProduced -> output_rows for ~every PlanInfo
+      # bearing operator (and on Doris 5.0 the OLAP_SCAN itself carries a PlanInfo
+      # block, so total_scan_rows above goes null too). AGGREGATION always carries a
+      # PlanInfo block, so it must surface a non-null output_rows here.
+      expect_parsed "profile: get -> AGGREGATION operator surfaces output_rows (PlanInfo kept its counters)" \
+        'any(.operators[]; (.name|test("AGG")) and (.output_rows != null))'
       # Fragment breakdown must be REAL: exactly the 3 fragments of this group-by,
       # count consistent with the array, and NO empty duplicates (regression guard —
       # a DetailProfile/Appendix block bleeding into MergedProfile used to fabricate
@@ -135,6 +143,13 @@ suite_profile() {
           '(.profile.fragments|length>0) and (.profile.fragments[0].pipelines|length>0) and (.operators|length>0)'
         expect_parsed "profile: --full -> an operator exposes parsed all_counters" \
           'any(.profile.fragments[].pipelines[].operators[]; (.all_counters|type=="object") and (.all_counters|length>0))'
+        # Regression (PlanInfo block swallowed counters): the block must terminate and
+        # NOT absorb the counter lines that follow it. The fingerprint of that bug is
+        # an operator with a non-empty plan_info but an empty/absent all_counters
+        # (every counter, RowsProduced included, got mis-parsed as plan-info). The
+        # --full tree exposes both maps per operator, so assert there are none.
+        expect_parsed "profile: --full -> no PlanInfo-bearing operator lost its counters" \
+          '[.profile.fragments[].pipelines[].operators[] | select((.plan_info|length)>0) | select((.all_counters|length)==0)] | length == 0'
       fi
 
       # ── --raw: the raw profile text round-trips; capture it as the fixture ─
