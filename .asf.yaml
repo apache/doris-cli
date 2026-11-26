@@ -40,17 +40,5 @@ github:
       required_pull_request_reviews:
         required_approving_review_count: 1
         dismiss_stale_reviews: true
-    - name: Release tag protection
-      target: tag
-      enforcement: active
-      bypass_actors: []
-      conditions:
-        ref_name:
-          include:
-            - "refs/tags/v*.*.*"
-          exclude: []
-      rules:
-        - type: update
-        - type: deletion
 notifications:
   pullrequests_status:  commits@doris.apache.org
