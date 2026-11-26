@@ -28,7 +28,7 @@ jobs:
       fail-fast: false
       matrix:
         # Native build on each runner, so the runner's OS+arch IS the target —
-        # no cross-compilation needed. Mirrors the release-npm platform set.
+        # no cross-compilation needed. Matches the npm release platforms.
         include:
           - { name: darwin-arm64, runner: macos-14 }
           - { name: linux-x64, runner: ubuntu-latest }

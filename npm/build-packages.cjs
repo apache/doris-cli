@@ -32,7 +32,7 @@ function freshDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
-function buildPlatform(key, binPath) {
+function buildPlatform(key, binPath, dist = DIST) {
   const entry = PLATFORMS[key];
   if (!entry) {
     throw new Error(`unknown platform "${key}". Known: ${Object.keys(PLATFORMS).join(", ")}`);
@@ -42,7 +42,7 @@ function buildPlatform(key, binPath) {
   }
   const version = crateVersion();
   const [os, cpu] = key.split("-");
-  const outDir = path.join(DIST, `doriscli-${key}`);
+  const outDir = path.join(dist, `doriscli-${key}`);
   freshDir(path.join(outDir, "bin"));
 
   const destBin = path.join(outDir, "bin", entry.binName);
@@ -66,9 +66,9 @@ function buildPlatform(key, binPath) {
   console.log(`built ${path.relative(ROOT, outDir)}  (${version}, ${os}/${cpu})`);
 }
 
-function buildMain() {
+function buildMain(dist = DIST) {
   const version = crateVersion();
-  const outDir = path.join(DIST, "doriscli");
+  const outDir = path.join(dist, "doriscli");
   freshDir(path.join(outDir, "bin"));
 
   fs.copyFileSync(path.join(SRC_MAIN, "bin", "doriscli"), path.join(outDir, "bin", "doriscli"));
@@ -88,12 +88,16 @@ function buildMain() {
   console.log(`built ${path.relative(ROOT, outDir)}  (${version}, ${Object.keys(PLATFORMS).length} optional deps)`);
 }
 
-const [cmd, ...rest] = process.argv.slice(2);
-if (cmd === "platform") {
-  buildPlatform(rest[0], rest[1]);
-} else if (cmd === "main") {
-  buildMain();
-} else {
-  process.stderr.write("usage: build-packages.cjs platform <key> <binary> | main\n");
-  process.exit(2);
+if (require.main === module) {
+  const [cmd, ...rest] = process.argv.slice(2);
+  if (cmd === "platform") {
+    buildPlatform(rest[0], rest[1]);
+  } else if (cmd === "main") {
+    buildMain();
+  } else {
+    process.stderr.write("usage: build-packages.cjs platform <key> <binary> | main\n");
+    process.exit(2);
+  }
 }
+
+module.exports = { buildPlatform, buildMain, crateVersion };
