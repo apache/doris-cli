@@ -5,10 +5,8 @@ to npm. The CLI is distributed as **prebuilt npm packages** under the
 `@apache-doris` scope; end users install it with
 `npm install -g @apache-doris/doriscli`.
 
-The whole build-and-publish pipeline is automated in
-[`.github/workflows/release-npm.yml`](.github/workflows/release-npm.yml). A
-release manager's job is to bump the version, validate with a dry run, and push
-a tag — the workflow does the rest.
+Use [`npm/release.cjs`](npm/release.cjs) to build and publish the packages from
+your machine.
 
 ## What gets published
 
@@ -30,23 +28,21 @@ and the packaging script.
 ## Versioning
 
 **The published version is read from `Cargo.toml` (`[package].version`)** by
-`npm/build-packages.cjs`, so npm always matches the crate. The git tag does not
-set the version — it only has to match it.
+`npm/build-packages.cjs`. Tag the release commit as `vX.Y.Z`, using the same
+version as the crate.
 
 npm versions are **immutable**: you cannot re-publish a version. Every release is
 a new version number, and a broken release is fixed by shipping the next patch
 (see [Fixing a broken release](#fixing-a-broken-release)).
 
-## One-time prerequisites
+## Prerequisites
 
-- An npm account in the **`apache-doris`** npm organization with publish rights to
-  the `@apache-doris` scope.
-- Repository secret **`NPM_TOKEN`** set to a **Classic _Automation_ token**
-  (npmjs.com → Access Tokens → Generate New Token → Classic Token → **Automation**).
-  The org enforces two-factor auth for writes, and an Automation token is the type
-  that bypasses 2FA in CI. A granular or read-only token will fail — see
-  [Troubleshooting](#troubleshooting).
-- Permission to push tags to `apache/doris-cli`.
+- To build, use an Apple Silicon Mac with Rust, Xcode Command Line Tools, and
+  Docker configured to run `linux/arm64` and `linux/amd64` containers.
+- Install Node.js 20 or later and npm.
+- To publish, use an npm granular access token with write access to the four
+  `@apache-doris` packages and **Bypass 2FA** enabled. You also need permission
+  to push release tags to `apache/doris-cli`.
 
 ## Release steps
 
@@ -67,33 +63,39 @@ cargo check                   # rewrites Cargo.lock to match the new version
 git add Cargo.toml Cargo.lock && git commit -m "release X.Y.Z"
 ```
 
-### 2. Dry-run the pipeline (recommended)
-
-From the GitHub UI: **Actions → release-npm → Run workflow**, leaving
-**`dry_run` ☑ checked** (the default). This builds every platform, assembles all
-packages, and runs `npm publish --dry-run` — **no token is used and nothing is
-published.** Confirm the run is green.
-
-CLI equivalent:
+### 2. Build and inspect the packages
 
 ```bash
-gh workflow run release-npm.yml -f dry_run=true
+node npm/release.cjs build
 ```
 
-### 3. Tag and push (the real publish)
+The script builds macOS ARM64 on the host and both Linux architectures in Docker
+using `rust:1-bookworm`. All builds use `Cargo.lock`. The script prints the
+directory under `npm/dist/` that contains the four ready-to-publish `.tgz`
+files. This command only builds and packs the archives.
+
+If your Docker installation pulls Rust from another registry, set
+`DORISCLI_RUST_IMAGE` to the equivalent image for the build command.
+
+### 3. Tag and publish from your terminal
 
 ```bash
 git tag -a vX.Y.Z -m "doriscli X.Y.Z"
-git push <apache-remote> vX.Y.Z      # the remote pointing at apache/doris-cli
+git push https://github.com/apache/doris-cli.git vX.Y.Z
+node npm/release.cjs publish npm/dist/release-X.Y.Z-XXXXXX
 ```
 
-The `v*.*.*` tag triggers `release-npm`, which builds all three platforms and
-publishes. Platform packages publish first; the main package publishes last, so
-its `optionalDependencies` already resolve on the registry.
+Use the archive directory printed by the build. The script validates all four
+archives against the current `Cargo.toml` version and prompts for the npm token
+without echoing it. It supplies the token to the local `npm publish` processes
+and publishes the three platform packages first, followed by the main package.
+If a publish fails partway through, rerun the command with the same archive
+directory. The script skips any archives already published with identical
+contents.
 
 ### 4. Verify
 
-After the run is green:
+After publishing succeeds, check the version on npm and test a fresh install.
 
 ```bash
 npm view @apache-doris/doriscli dist-tags          # `latest` should be X.Y.Z
@@ -108,40 +110,16 @@ rm -rf "$tmp"
 npm moves the `latest` dist-tag to the highest version automatically, so a plain
 `npm install -g @apache-doris/doriscli` picks up the new release.
 
-## How the pipeline works
-
-`release-npm.yml` has two jobs:
-
-- **build** — a matrix over the three platforms. Each runner does
-  `cargo build --release`, then `node npm/build-packages.cjs platform <key> <binary>`
-  assembles that platform package and uploads it as an artifact.
-- **publish** — downloads the artifacts, **re-applies the executable bit**,
-  assembles the main package, and `npm publish`es each one.
-
-> ⚠️ **Do not remove the `chmod 0755` step in the publish job.**
-> `actions/upload-artifact` strips the Unix executable bit, so the prebuilt
-> binary arrives in the publish job as `0644`. The publish job re-runs
-> `chmod 0755` on each binary *before* `npm publish`; without it, npm ships a
-> non-executable binary and the CLI fails at runtime with `EACCES`. (This is
-> exactly how `0.1.0` shipped broken.)
-
-### Actions allowlist
-
-`apache/doris-cli` is under the Apache org's GitHub Actions allowlist: only
-GitHub-owned actions (`actions/*`) and **local** actions (`./.github/actions/...`)
-are permitted. That's why the Rust toolchain setup is a local composite action
-(`.github/actions/setup-rust-toolchain`) instead of a third-party one. **Do not
-add third-party actions** to the workflow — they will be rejected.
-
 ## Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
-| `403 Forbidden ... You may not perform that action with these credentials` | The token can't publish that name. Ensure package names are scoped to `@apache-doris` and `NPM_TOKEN` has publish rights to the scope. |
-| `403 ... Two-factor authentication ... required` | `NPM_TOKEN` doesn't bypass 2FA. Use a **Classic Automation** token, not a granular or read-only one. |
-| CLI fails with `EACCES` after install | The published binary isn't executable — the `chmod 0755` step in the publish job is missing or didn't match the binary path. |
+| `403 Forbidden ... You may not perform that action with these credentials` | Check that your token grants write access to all four `@apache-doris` packages. |
+| `403 ... Two-factor authentication ... required` | Check that **Bypass 2FA** is enabled on the granular access token. |
+| CLI fails with `EACCES` after install | Check for mode `0755` on `package/bin/doriscli` inside the relevant platform archive. |
 | CI fails with a lockfile / `--locked` error | `Cargo.lock` is out of sync after the version bump. Run `cargo check` (rewrites the lock) and commit `Cargo.lock`. |
-| Want to add a platform | Add it to `npm/doriscli/platforms.js` **and** the build matrix in `release-npm.yml`. |
+| npm already has the version with different contents | Use the original archive directory to resume a partial publish, or bump the version for a new release. |
+| Want to add a platform | Add it to `npm/doriscli/platforms.js` and add its build configuration to `npm/release.cjs`. |
 
 ## Fixing a broken release
 
