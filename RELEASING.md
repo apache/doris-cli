@@ -5,10 +5,9 @@ to npm. The CLI is distributed as **prebuilt npm packages** under the
 `@apache-doris` scope; end users install it with
 `npm install -g @apache-doris/doriscli`.
 
-The whole build-and-publish pipeline is automated in
-[`.github/workflows/release-npm.yml`](.github/workflows/release-npm.yml). A
-release manager's job is to bump the version, validate with a dry run, and push
-a tag — the workflow does the rest.
+The [`release-npm` workflow](.github/workflows/release-npm.yml) builds and
+publishes the packages. Start it manually to validate a release or publish it
+to npm.
 
 ## What gets published
 
@@ -80,16 +79,17 @@ CLI equivalent:
 gh workflow run release-npm.yml -f dry_run=true
 ```
 
-### 3. Tag and push (the real publish)
+### 3. Tag and run the publish workflow
 
 ```bash
 git tag -a vX.Y.Z -m "doriscli X.Y.Z"
 git push <apache-remote> vX.Y.Z      # the remote pointing at apache/doris-cli
+gh workflow run release-npm.yml --repo apache/doris-cli --ref vX.Y.Z -f dry_run=false
 ```
 
-The `v*.*.*` tag triggers `release-npm`, which builds all three platforms and
-publishes. Platform packages publish first; the main package publishes last, so
-its `optionalDependencies` already resolve on the registry.
+The manual run builds all three platforms and publishes the platform packages
+first. It then publishes the main package once its `optionalDependencies` are
+available in the registry.
 
 ### 4. Verify
 
