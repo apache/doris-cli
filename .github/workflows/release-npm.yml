@@ -2,9 +2,6 @@ name: release-npm
 
 # Builds doriscli for each supported platform and assembles the npm packages.
 # Start this workflow manually to validate or publish the packages.
-#
-# Prerequisite: add an npm automation token as the repo secret `NPM_TOKEN`
-# (npmjs.com → Access Tokens → Generate → "Automation").
 
 on:
   workflow_dispatch:
@@ -13,6 +10,10 @@ on:
         description: "Validate build + packaging without publishing (npm publish --dry-run)"
         type: boolean
         default: true
+      npm_token:
+        description: "npm publish token (plain workflow input; leave blank for dry runs)"
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -90,16 +91,23 @@ jobs:
           ls -la
       - name: Assemble main package
         run: node npm/build-packages.cjs main
-      - name: Publish platform packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish npm packages
+        shell: bash
         run: |
-          set -e
+          if [[ "$DRY_RUN" == false ]]; then
+            # Read at runtime so the runner does not print the token in the step environment.
+            npm_token=$(jq -r '.inputs.npm_token // empty' "$GITHUB_EVENT_PATH")
+            if [[ -z "$npm_token" || "$npm_token" == *[[:space:]]* ]]; then
+              echo '::error::Enter an npm_token without spaces or line breaks when dry_run is false.'
+              exit 1
+            fi
+            printf '::add-mask::%s\n' "${npm_token//%/%25}"
+            export NODE_AUTH_TOKEN="$npm_token"
+          fi
+
           for d in npm/dist/doriscli-*/; do
             npm publish "$d" --access public --dry-run="$DRY_RUN"
           done
-      - name: Publish main package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        # Published last so the optionalDependencies already exist on the registry.
-        run: npm publish npm/dist/doriscli --access public --dry-run="$DRY_RUN"
+
+          # Publish the main package after its optional dependencies are available.
+          npm publish npm/dist/doriscli --access public --dry-run="$DRY_RUN"

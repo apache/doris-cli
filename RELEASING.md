@@ -36,15 +36,13 @@ npm versions are **immutable**: you cannot re-publish a version. Every release i
 a new version number, and a broken release is fixed by shipping the next patch
 (see [Fixing a broken release](#fixing-a-broken-release)).
 
-## One-time prerequisites
+## Prerequisites
 
 - An npm account in the **`apache-doris`** npm organization with publish rights to
   the `@apache-doris` scope.
-- Repository secret **`NPM_TOKEN`** set to a **Classic _Automation_ token**
-  (npmjs.com → Access Tokens → Generate New Token → Classic Token → **Automation**).
-  The org enforces two-factor auth for writes, and an Automation token is the type
-  that bypasses 2FA in CI. A granular or read-only token will fail — see
-  [Troubleshooting](#troubleshooting).
+- An npm granular access token with write access to the four packages and
+  **Bypass 2FA** enabled. Enter it as `npm_token` each time you start a publish run.
+- Permission to run workflows in `apache/doris-cli`.
 - Permission to push tags to `apache/doris-cli`.
 
 ## Release steps
@@ -68,10 +66,9 @@ git add Cargo.toml Cargo.lock && git commit -m "release X.Y.Z"
 
 ### 2. Dry-run the pipeline (recommended)
 
-From the GitHub UI: **Actions → release-npm → Run workflow**, leaving
-**`dry_run` ☑ checked** (the default). This builds every platform, assembles all
-packages, and runs `npm publish --dry-run` — **no token is used and nothing is
-published.** Confirm the run is green.
+In GitHub, open **Actions → release-npm → Run workflow**. Leave `dry_run` checked
+and `npm_token` blank. This builds every platform, assembles all packages, and
+runs `npm publish --dry-run`. Confirm the run succeeds.
 
 CLI equivalent:
 
@@ -83,9 +80,16 @@ gh workflow run release-npm.yml -f dry_run=true
 
 ```bash
 git tag -a vX.Y.Z -m "doriscli X.Y.Z"
-git push <apache-remote> vX.Y.Z      # the remote pointing at apache/doris-cli
-gh workflow run release-npm.yml --repo apache/doris-cli --ref vX.Y.Z -f dry_run=false
+git push https://github.com/apache/doris-cli.git vX.Y.Z
 ```
+
+In **Actions → release-npm → Run workflow**, select a branch whose latest commit
+matches the tag. Clear `dry_run`, enter `npm_token`, and start the run. To select
+the tag directly, run `gh workflow run --repo apache/doris-cli --ref vX.Y.Z`,
+choose `release-npm`, and fill in the two inputs.
+
+GitHub receives `npm_token` as a plain dispatch input. The publish step masks
+the token in its logs.
 
 The manual run builds all three platforms and publishes the platform packages
 first. It then publishes the main package once its `optionalDependencies` are
@@ -137,8 +141,8 @@ add third-party actions** to the workflow — they will be rejected.
 
 | Symptom | Cause / fix |
 |---|---|
-| `403 Forbidden ... You may not perform that action with these credentials` | The token can't publish that name. Ensure package names are scoped to `@apache-doris` and `NPM_TOKEN` has publish rights to the scope. |
-| `403 ... Two-factor authentication ... required` | `NPM_TOKEN` doesn't bypass 2FA. Use a **Classic Automation** token, not a granular or read-only one. |
+| `403 Forbidden ... You may not perform that action with these credentials` | Check that the token entered as `npm_token` grants write access to all four `@apache-doris` packages. |
+| `403 ... Two-factor authentication ... required` | Check that **Bypass 2FA** is enabled on the granular access token. |
 | CLI fails with `EACCES` after install | The published binary isn't executable — the `chmod 0755` step in the publish job is missing or didn't match the binary path. |
 | CI fails with a lockfile / `--locked` error | `Cargo.lock` is out of sync after the version bump. Run `cargo check` (rewrites the lock) and commit `Cargo.lock`. |
 | Want to add a platform | Add it to `npm/doriscli/platforms.js` **and** the build matrix in `release-npm.yml`. |
