@@ -37,7 +37,6 @@ github:
           - "~DEFAULT_BRANCH"
       restrict_deletion: true
       restrict_force_push: true
-      required_conversation_resolution: true
       required_pull_request_reviews:
         required_approving_review_count: 1
         dismiss_stale_reviews: true
